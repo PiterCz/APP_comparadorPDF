@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Comparador de Informes de Medicación</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -325,6 +326,38 @@
             padding-bottom: 0;
         }
 
+        /* Button Styles */
+        .download-button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            margin-top: 20px;
+        }
+
+        .download-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .download-button:active {
+            transform: translateY(0);
+        }
+
+        .download-button svg {
+            width: 20px;
+            height: 20px;
+        }
+
         /* Print Styles */
         @media print {
             body {
@@ -460,6 +493,12 @@
             <div id="report" class="changes-section">
                 <div class="report-section">
                     <h3>Informe de Cambios en Medicación</h3>
+                    <button class="download-button" onclick="downloadPDF()">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        Descargar Informe PDF
+                    </button>
                     <div class="report-content" id="reportContent">
                         <div class="loading">
                             <div class="loading-spinner"></div>
@@ -472,6 +511,9 @@
     </div>
 
     <script>
+        // Variable global para almacenar los datos actuales
+        let currentData = null;
+
         // Función para cambiar entre tabs
         function switchTab(tabName) {
             document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
@@ -759,6 +801,9 @@
 
         // Función principal para cargar datos
         function loadComparisonData(data) {
+            // Guardar datos en variable global
+            currentData = data;
+            
             // Actualizar estadísticas
             document.getElementById('newMeds').textContent = data.stats.new || 0;
             document.getElementById('removedMeds').textContent = data.stats.removed || 0;
@@ -829,6 +874,281 @@
                 loadComparisonData(event.data.data);
             }
         });
+
+        // Función para descargar el informe en PDF
+        function downloadPDF() {
+            if (!currentData) {
+                alert('No hay datos para generar el informe');
+                return;
+            }
+
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            
+            // Configuración de fuentes y colores
+            const primaryColor = [102, 126, 234];
+            const textColor = [51, 51, 51];
+            const greenColor = [16, 185, 129];
+            const redColor = [239, 68, 68];
+            const blueColor = [59, 130, 246];
+            const orangeColor = [245, 158, 11];
+            
+            // Márgenes
+            const margin = 20;
+            const pageWidth = doc.internal.pageSize.width;
+            const contentWidth = pageWidth - 2 * margin;
+            let yPosition = margin;
+            
+            // Título principal
+            doc.setFontSize(20);
+            doc.setTextColor(...primaryColor);
+            doc.text('INFORME DE CAMBIOS EN MEDICACIÓN', pageWidth / 2, yPosition, { align: 'center' });
+            yPosition += 15;
+            
+            // Información del paciente y fecha
+            doc.setFontSize(12);
+            doc.setTextColor(...textColor);
+            const patientName = currentData.patientName || 'No especificado';
+            const date = new Date().toLocaleDateString('es-ES', { 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric' 
+            });
+            
+            doc.setFont(undefined, 'bold');
+            doc.text(`Paciente: ${patientName}`, margin, yPosition);
+            yPosition += 7;
+            doc.text(`Fecha: ${date}`, margin, yPosition);
+            yPosition += 7;
+            doc.text(`Archivos comparados: ${currentData.file1 || 'PDF 1'} vs ${currentData.file2 || 'PDF 2'}`, margin, yPosition);
+            yPosition += 15;
+            
+            // Línea separadora
+            doc.setDrawColor(...primaryColor);
+            doc.setLineWidth(0.5);
+            doc.line(margin, yPosition, pageWidth - margin, yPosition);
+            yPosition += 10;
+            
+            // Resumen de estadísticas
+            doc.setFont(undefined, 'bold');
+            doc.setFontSize(14);
+            doc.text('RESUMEN DE CAMBIOS', margin, yPosition);
+            yPosition += 10;
+            
+            doc.setFont(undefined, 'normal');
+            doc.setFontSize(11);
+            const stats = currentData.stats;
+            const changes = currentData.changes || {};
+            
+            // Estadísticas con colores
+            doc.setTextColor(...greenColor);
+            doc.text(`• Medicamentos nuevos: ${stats.new || 0}`, margin + 5, yPosition);
+            yPosition += 7;
+            
+            doc.setTextColor(...redColor);
+            doc.text(`• Medicamentos eliminados: ${stats.removed || 0}`, margin + 5, yPosition);
+            yPosition += 7;
+            
+            doc.setTextColor(...orangeColor);
+            doc.text(`• Observaciones añadidas: ${(changes.observation || []).length}`, margin + 5, yPosition);
+            yPosition += 7;
+            
+            doc.setTextColor(...blueColor);
+            doc.text(`• Cambios de posología: ${(changes.dosage || []).length}`, margin + 5, yPosition);
+            yPosition += 15;
+            
+            // Detalle de cambios
+            doc.setTextColor(...textColor);
+            
+            // Medicamentos nuevos
+            if (changes.new && changes.new.length > 0) {
+                doc.setFont(undefined, 'bold');
+                doc.setFontSize(13);
+                doc.setTextColor(...greenColor);
+                doc.text('MEDICAMENTOS NUEVOS', margin, yPosition);
+                yPosition += 8;
+                
+                doc.setFont(undefined, 'normal');
+                doc.setFontSize(11);
+                doc.setTextColor(...textColor);
+                
+                changes.new.forEach(med => {
+                    if (yPosition > 250) {
+                        doc.addPage();
+                        yPosition = margin;
+                    }
+                    
+                    doc.setFont(undefined, 'bold');
+                    doc.text(`• ${med.medication}`, margin + 5, yPosition);
+                    yPosition += 6;
+                    
+                    if (med.details) {
+                        doc.setFont(undefined, 'normal');
+                        doc.setFontSize(10);
+                        const details = Object.entries(med.details)
+                            .map(([key, value]) => `${key}: ${value}`)
+                            .join(' | ');
+                        
+                        const lines = doc.splitTextToSize(details, contentWidth - 10);
+                        lines.forEach(line => {
+                            doc.text(line, margin + 10, yPosition);
+                            yPosition += 5;
+                        });
+                    }
+                    yPosition += 5;
+                });
+                yPosition += 5;
+            }
+            
+            // Medicamentos eliminados
+            if (changes.removed && changes.removed.length > 0) {
+                if (yPosition > 230) {
+                    doc.addPage();
+                    yPosition = margin;
+                }
+                
+                doc.setFont(undefined, 'bold');
+                doc.setFontSize(13);
+                doc.setTextColor(...redColor);
+                doc.text('MEDICAMENTOS ELIMINADOS', margin, yPosition);
+                yPosition += 8;
+                
+                doc.setFont(undefined, 'normal');
+                doc.setFontSize(11);
+                doc.setTextColor(...textColor);
+                
+                changes.removed.forEach(med => {
+                    if (yPosition > 250) {
+                        doc.addPage();
+                        yPosition = margin;
+                    }
+                    
+                    doc.setFont(undefined, 'bold');
+                    doc.text(`• ${med.medication}`, margin + 5, yPosition);
+                    yPosition += 6;
+                    
+                    if (med.lastDetails) {
+                        doc.setFont(undefined, 'normal');
+                        doc.setFontSize(10);
+                        const details = Object.entries(med.lastDetails)
+                            .map(([key, value]) => `${key}: ${value}`)
+                            .join(' | ');
+                        
+                        const lines = doc.splitTextToSize(details, contentWidth - 10);
+                        lines.forEach(line => {
+                            doc.text(line, margin + 10, yPosition);
+                            yPosition += 5;
+                        });
+                    }
+                    yPosition += 5;
+                });
+                yPosition += 5;
+            }
+            
+            // Cambios de posología
+            if (changes.dosage && changes.dosage.length > 0) {
+                if (yPosition > 230) {
+                    doc.addPage();
+                    yPosition = margin;
+                }
+                
+                doc.setFont(undefined, 'bold');
+                doc.setFontSize(13);
+                doc.setTextColor(...blueColor);
+                doc.text('CAMBIOS DE POSOLOGÍA', margin, yPosition);
+                yPosition += 8;
+                
+                doc.setFont(undefined, 'normal');
+                doc.setFontSize(11);
+                doc.setTextColor(...textColor);
+                
+                changes.dosage.forEach(change => {
+                    if (yPosition > 250) {
+                        doc.addPage();
+                        yPosition = margin;
+                    }
+                    
+                    doc.setFont(undefined, 'bold');
+                    doc.text(`• ${change.medication}`, margin + 5, yPosition);
+                    yPosition += 6;
+                    
+                    doc.setFont(undefined, 'normal');
+                    doc.setFontSize(10);
+                    const description = change.description || `Cambio de ${change.before} a ${change.after}`;
+                    const lines = doc.splitTextToSize(description, contentWidth - 10);
+                    lines.forEach(line => {
+                        doc.text(line, margin + 10, yPosition);
+                        yPosition += 5;
+                    });
+                    yPosition += 5;
+                });
+                yPosition += 5;
+            }
+            
+            // Observaciones añadidas
+            if (changes.observation && changes.observation.length > 0) {
+                if (yPosition > 230) {
+                    doc.addPage();
+                    yPosition = margin;
+                }
+                
+                doc.setFont(undefined, 'bold');
+                doc.setFontSize(13);
+                doc.setTextColor(...orangeColor);
+                doc.text('OBSERVACIONES AÑADIDAS', margin, yPosition);
+                yPosition += 8;
+                
+                doc.setFont(undefined, 'normal');
+                doc.setFontSize(11);
+                doc.setTextColor(...textColor);
+                
+                changes.observation.forEach(obs => {
+                    if (yPosition > 250) {
+                        doc.addPage();
+                        yPosition = margin;
+                    }
+                    
+                    doc.setFont(undefined, 'bold');
+                    doc.text(`• ${obs.medication}`, margin + 5, yPosition);
+                    yPosition += 6;
+                    
+                    doc.setFont(undefined, 'italic');
+                    doc.setFontSize(10);
+                    const obsLines = doc.splitTextToSize(`"${obs.observation}"`, contentWidth - 10);
+                    obsLines.forEach(line => {
+                        doc.text(line, margin + 10, yPosition);
+                        yPosition += 5;
+                    });
+                    yPosition += 5;
+                });
+            }
+            
+            // Nota final
+            if (yPosition > 230) {
+                doc.addPage();
+                yPosition = margin;
+            }
+            
+            yPosition += 10;
+            doc.setDrawColor(...primaryColor);
+            doc.setLineWidth(0.5);
+            doc.line(margin, yPosition, pageWidth - margin, yPosition);
+            yPosition += 10;
+            
+            doc.setFont(undefined, 'italic');
+            doc.setFontSize(10);
+            doc.setTextColor(100, 100, 100);
+            const nota = 'Este informe ha sido generado automáticamente mediante la comparación de los informes de medicación. Se recomienda revisar los cambios con el personal médico responsable.';
+            const notaLines = doc.splitTextToSize(nota, contentWidth);
+            notaLines.forEach(line => {
+                doc.text(line, margin, yPosition);
+                yPosition += 5;
+            });
+            
+            // Descargar el PDF
+            const fileName = `Informe_Cambios_${patientName.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
+            doc.save(fileName);
+        }
     </script>
 </body>
 </html>
